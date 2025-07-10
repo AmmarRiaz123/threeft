@@ -1,9 +1,12 @@
 Flask
+gunicorn
 easyocr
 spacy
 pillow
-opencv-python
+opencv-python-headless
 numpy
 openpyxl
 nameparser
-gunicorn
+torch==2.0.0+cpu
+torchvision==0.15.1+cpu
+--extra-index-url https://download.pytorch.org/whl/cpu
