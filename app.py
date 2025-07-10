@@ -14,7 +14,7 @@ app = Flask(__name__)
 
 # Initialize OCR and NLP tools
 reader = easyocr.Reader(['en'])
-nlp = spacy.load("en_core_web_trf")
+nlp = spacy.load("en_core_web_sm")
 matcher = Matcher(nlp.vocab)
 
 # Profession keywords
