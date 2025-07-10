@@ -1,7 +1,9 @@
 Flask
-pytesseract
+easyocr
 spacy
 pillow
 opencv-python
 numpy
 openpyxl
+nameparser
+gunicorn
