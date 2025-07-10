@@ -1,0 +1,7 @@
+Flask
+pytesseract
+spacy
+pillow
+opencv-python
+numpy
+openpyxl
