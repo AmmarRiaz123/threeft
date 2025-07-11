@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, send_file
 from PIL import Image
 import easyocr
 import spacy
@@ -14,7 +14,7 @@ app = Flask(__name__)
 
 # Initialize OCR and NLP tools
 reader = easyocr.Reader(['en'])
-nlp = spacy.load("en_core_web_sm")
+nlp = spacy.load("en_core_web_sm")  # Using small model to reduce memory
 matcher = Matcher(nlp.vocab)
 
 # Profession keywords
@@ -23,7 +23,7 @@ profession_list = [
     "founder", "ceo", "cto", "analyst", "consultant",
     "developer", "manager", "architect", "accountant",
     "marketing", "officer", "president", "administrator",
-    "seo", "designer" , "engineer"
+    "seo", "designer", "engineer"
 ]
 
 profession_patterns = [[{"LOWER": token} for token in title.split()] for title in profession_list]
@@ -43,7 +43,6 @@ def extract_profession(doc, lines):
     if matches:
         for match_id, start, end in matches:
             return doc[start:end].text
-
     for line in lines:
         for prof in profession_list:
             if prof.lower() in line.lower():
@@ -66,7 +65,6 @@ def extract_email(text):
     if match:
         return match.group()
 
-    # Fallback line-based
     for line in text.split("\n"):
         if "@" in line:
             line = line.strip().replace(" ", "").replace("(at)", "@").replace("(dot)", ".")
@@ -88,33 +86,25 @@ def extract_structured_data(text):
     lines = text.split("\n")
     doc = nlp(text)
 
-    # Name
     data["name"] = extract_name(lines)
-
-    # Email
     data["email"] = extract_email(text)
 
-    # Phone
     phone_match = re.search(r'(\+?\d{1,3}[\s\-]?)?(\(?\d{2,4}\)?[\s\-]?)?[\d\s\-]{7,}', text)
     if phone_match:
         data["phone"] = phone_match.group().strip()
 
-    # Address from named entities
     for ent in doc.ents:
         if ent.label_ in ["GPE", "LOC", "FAC"]:
             data["address"] = ent.text
             break
 
-    # Fallback for address
     if not data["address"]:
         for line in lines:
             if any(kw in line.lower() for kw in ["street", "road", "city", "state", "block", "avenue"]):
                 data["address"] = line.strip()
                 break
 
-    # Profession
     data["profession"] = extract_profession(doc, lines)
-
     return data
 
 def save_to_excel(data, filename="data.xlsx"):
@@ -178,6 +168,14 @@ def extract_text():
             })
 
     return jsonify(results)
+
+@app.route('/download-excel')
+def download_excel():
+    path = "data.xlsx"
+    if os.path.exists(path):
+        return send_file(path, as_attachment=True)
+    else:
+        return "Excel file not found", 404
 
 # ==================== Run Server ====================
 if __name__ == "__main__":
