@@ -13,8 +13,8 @@ from nameparser import HumanName
 app = Flask(__name__)
 
 # Initialize OCR and NLP tools
-reader = easyocr.Reader(['en'])
-nlp = spacy.load("en_core_web_sm")  # Using small model to reduce memory
+reader = easyocr.Reader(['en'], gpu=False)
+nlp = spacy.load("en_core_web_sm")
 matcher = Matcher(nlp.vocab)
 
 # Profession keywords
@@ -25,7 +25,6 @@ profession_list = [
     "marketing", "officer", "president", "administrator",
     "seo", "designer", "engineer"
 ]
-
 profession_patterns = [[{"LOWER": token} for token in title.split()] for title in profession_list]
 matcher.add("PROFESSION", profession_patterns)
 
@@ -33,21 +32,18 @@ matcher.add("PROFESSION", profession_patterns)
 
 def preprocess_image(pil_image):
     img = np.array(pil_image)
-    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    denoised = cv2.fastNlMeansDenoising(gray, h=10)
-    _, binary = cv2.threshold(denoised, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    return binary
+    h, w = img.shape[:2]
 
-def extract_profession(doc, lines):
-    matches = matcher(doc)
-    if matches:
-        for match_id, start, end in matches:
-            return doc[start:end].text
-    for line in lines:
-        for prof in profession_list:
-            if prof.lower() in line.lower():
-                return line.strip()
-    return None
+    # Resize small images
+    if h < 600 or w < 600:
+        img = cv2.resize(img, (w * 2, h * 2), interpolation=cv2.INTER_CUBIC)
+
+    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    adaptive = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                     cv2.THRESH_BINARY, 31, 10)
+    kernel = np.ones((1, 1), np.uint8)
+    cleaned = cv2.morphologyEx(adaptive, cv2.MORPH_OPEN, kernel)
+    return cleaned
 
 def extract_name(lines):
     for line in lines:
@@ -57,32 +53,25 @@ def extract_name(lines):
     return None
 
 def extract_email(text):
-    cleaned_text = text.replace(" ", "") \
-                       .replace("(@)", "@").replace("[at]", "@").replace("{at}", "@") \
-                       .replace("(dot)", ".").replace("[dot]", ".").replace("{dot}", ".")
+    cleaned = text.replace(" ", "").replace("(@)", "@").replace("[at]", "@").replace("{at}", "@")
+    cleaned = cleaned.replace("(dot)", ".").replace("[dot]", ".").replace("{dot}", ".")
 
-    match = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', cleaned_text)
-    if match:
-        return match.group()
+    match = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', cleaned)
+    return match.group() if match else None
 
-    for line in text.split("\n"):
-        if "@" in line:
-            line = line.strip().replace(" ", "").replace("(at)", "@").replace("(dot)", ".")
-            match = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', line)
-            if match:
-                return match.group()
-
+def extract_profession(doc, lines):
+    matches = matcher(doc)
+    if matches:
+        for _, start, end in matches:
+            return doc[start:end].text
+    for line in lines:
+        for prof in profession_list:
+            if prof.lower() in line.lower():
+                return line.strip()
     return None
 
 def extract_structured_data(text):
-    data = {
-        "name": None,
-        "email": None,
-        "phone": None,
-        "address": None,
-        "profession": None
-    }
-
+    data = {"name": None, "email": None, "phone": None, "address": None, "profession": None}
     lines = text.split("\n")
     doc = nlp(text)
 
@@ -125,13 +114,10 @@ def save_to_excel(data, filename="data.xlsx"):
             data.get("profession", "")
         ])
         wb.save(filename)
-
-    except PermissionError:
-        print(f"[ERROR] Permission denied while saving to {filename}. Close the file if it's open.")
     except Exception as e:
-        print(f"[ERROR] Failed to save to {filename}: {str(e)}")
+        print(f"[ERROR] Failed to save to Excel: {str(e)}")
 
-# ==================== Flask Routes ====================
+# ==================== Routes ====================
 
 @app.route('/')
 def home():
@@ -147,11 +133,20 @@ def extract_text():
 
     for image_file in image_files:
         try:
+            print(f"[INFO] Processing {image_file.filename}")
             image = Image.open(image_file.stream).convert('RGB')
             preprocessed = preprocess_image(image)
             results_ocr = reader.readtext(preprocessed)
 
-            text = '\n'.join([res[1] for res in results_ocr if res[2] > 0.5])
+            # Retry with raw image if nothing useful is found
+            if not results_ocr or all(res[2] < 0.5 for res in results_ocr):
+                print(f"[WARNING] Low-confidence OCR, retrying with original image.")
+                results_ocr = reader.readtext(np.array(image))
+
+            text = '\n'.join([res[1] for res in results_ocr if res[2] > 0.4])
+            if not text.strip():
+                raise ValueError("OCR returned no confident text.")
+
             structured_data = extract_structured_data(text)
             save_to_excel(structured_data)
 
@@ -162,9 +157,10 @@ def extract_text():
             })
 
         except Exception as e:
+            print(f"[ERROR] Failed on {image_file.filename}: {e}")
             results.append({
                 'filename': image_file.filename,
-                'error': str(e)
+                'error': f"OCR processing failed: {str(e)}"
             })
 
     return jsonify(results)
@@ -178,5 +174,6 @@ def download_excel():
         return "Excel file not found", 404
 
 # ==================== Run Server ====================
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
