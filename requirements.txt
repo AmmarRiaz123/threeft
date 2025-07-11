@@ -1,17 +1,15 @@
+numpy
+
 Flask
 easyocr
 spacy
 pillow
 opencv-python
-numpy
 openpyxl
 nameparser
 gunicorn
 
-# CPU-only PyTorch from official source
 torch==2.3.0+cpu
-torchaudio==2.3.0+cpu
 torchvision==0.18.0+cpu
-
-# Use the right index URL for CPU-only binaries
+torchaudio==2.3.0+cpu
 --extra-index-url https://download.pytorch.org/whl/cpu
