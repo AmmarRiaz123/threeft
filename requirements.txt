@@ -7,4 +7,5 @@ opencv-python
 openpyxl
 nameparser
 gunicorn
-torch==2.1.2+cpu -f https://download.pytorch.org/whl/torch_stable.html
+torch==2.1.2+cpu 
+-f https://download.pytorch.org/whl/torch_stable.html
