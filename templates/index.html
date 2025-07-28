@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Upload Card Image</title>
+  <title>CNIC OCR Scanner</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='styling.css') }}">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500;700&display=swap" rel="stylesheet">
 </head>
@@ -12,7 +12,7 @@
 <!-- Loader -->
 <div id="loader" class="loader-overlay" style="display: none;">
   <div class="spinner"></div>
-  <p>Extracting data...</p>
+  <p>Extracting CNIC data, my love…</p>
 </div>
 
 <!-- Webcam Modal -->
@@ -25,7 +25,7 @@
   </div>
 </div>
 
-<!-- Decorative Background Shapes -->
+<!-- Background Shapes for Flair -->
 <div class="background-shapes">
   <div class="shape shape1"></div>
   <div class="shape shape2"></div>
@@ -34,22 +34,38 @@
 
 <div class="container">
   <div class="glass-card">
-    <h2>Upload Your Card Image</h2>
-    <p class="subtitle">Choose how you'd like to provide your card photo.</p>
+    <h2>Scan Your CNIC</h2>
+    <p class="subtitle">Upload or capture your CNIC to extract details.</p>
 
-    <form>
-      <label class="button camera-btn">
+    <form id="cnicForm" enctype="multipart/form-data">
+      <!-- Webcam Trigger -->
+      <label class="button camera-btn" id="openWebcam">
         <span class="icon">📷</span> Take Photo
       </label>
-      <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display: none;" />
 
+      <!-- Upload Trigger -->
       <label for="uploadInput" class="button upload-btn">
         <span class="icon">📁</span> Upload from Gallery
       </label>
-      <input type="file" id="uploadInput" accept="image/*" multiple />
+      <input type="file" id="uploadInput" name="image" accept="image/*" required style="display: none;" />
 
+      <!-- Image Preview -->
       <div id="preview" class="preview"></div>
+
+      <!-- New: Upload/Capture 5 images for verification -->
+      <div id="face-verification-section">
+        <label class="button upload-btn">
+          <span class="icon">🖼️</span> Upload 5 Face Images
+          <input type="file" id="faceImagesInput" name="face_images" accept="image/*" multiple style="display: none;" />
+        </label>
+        <div id="faceImagesPreview" class="preview"></div>
+        <button type="button" class="button camera-btn" id="verifyFacesBtn" style="margin-top:10px;">Verify & Get Voting Token</button>
+      </div>
+
+      <!-- Extracted Results -->
       <div id="result" class="extracted-info"></div>
+      <!-- New: Face verification result -->
+      <div id="faceVerificationResult" class="extracted-info"></div>
     </form>
   </div>
 </div>
