@@ -15,51 +15,22 @@ import secrets
 
 app = Flask(__name__)
 
-reader = easyocr.Reader(['en', 'ur'], gpu=False)  # Urdu & English
+# Initialize OCR and NLP tools
+reader = easyocr.Reader(['en'])
+nlp = spacy.load("en_core_web_trf")
+matcher = Matcher(nlp.vocab)
 
-# ==================== Database ===================
-def read_db_config(filename="config.ini", section="postgresql"):
-    parser = configparser.ConfigParser()
-    parser.read(filename)
-    if parser.has_section(section):
-        return {param[0]: param[1] for param in parser.items(section)}
-    else:
-        raise Exception(f"Section {section} not found in {filename}")
+# Profession keywords
+profession_list = [
+    "software engineer", "graphic designer", "data scientist",
+    "founder", "ceo", "cto", "analyst", "consultant",
+    "developer", "manager", "architect", "accountant",
+    "marketing", "officer", "president", "administrator",
+    "seo", "designer" , "engineer"
+]
 
-def save_to_postgres(data):
-    config = read_db_config()
-    try:
-        conn = psycopg2.connect(**config)
-        cursor = conn.cursor()
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS cnic_data (
-                id SERIAL PRIMARY KEY,
-                name TEXT,
-                father_name TEXT,
-                cnic_number TEXT,
-                dob TEXT,
-                issue_date TEXT,
-                expiry_date TEXT,
-                gender TEXT
-            )
-        ''')
-        cursor.execute('''
-            INSERT INTO cnic_data (name, father_name, cnic_number, dob, issue_date, expiry_date, gender)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-        ''', (
-            data.get("name", ""),
-            data.get("father_name", ""),
-            data.get("cnic_number", ""),
-            data.get("dob", ""),
-            data.get("issue_date", ""),
-            data.get("expiry_date", ""),
-            data.get("gender", "")
-        ))
-        conn.commit()
-        cursor.close()
-        conn.close()
-    except Exception as e:
-        print(f"[ERROR] Failed to save to PostgreSQL: {str(e)}")
+profession_patterns = [[{"LOWER": token} for token in title.split()] for title in profession_list]
+matcher.add("PROFESSION", profession_patterns)
 
 # ==================== Helper Functions ====================
 def extract_cnic(text):
@@ -86,98 +57,116 @@ def verify_with_nadra(cnic: str, name: str, dob: str) -> bool:
 
 
 def preprocess_image(pil_image):
-    img = np.array(pil_image.convert("RGB"))
+    img = np.array(pil_image)
     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    enhanced = clahe.apply(gray)
-    enhanced = cv2.resize(enhanced, None, fx=1.5, fy=1.5, interpolation=cv2.INTER_LINEAR)
-    return Image.fromarray(enhanced)
+    denoised = cv2.fastNlMeansDenoising(gray, h=10)
+    _, binary = cv2.threshold(denoised, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    return binary
 
-def fuzzy_search(label, lines, threshold=75):
-    for i, line in enumerate(lines):
-        score = fuzz.partial_ratio(label.lower(), line.lower())
-        if score >= threshold and i+1 < len(lines):
-            next_line = re.sub(r"[^\w\s]", "", lines[i+1]).strip()
-            if next_line and not any(x in next_line.lower() for x in ["father", "name", "identity", "pakistan", "card"]):
-                return next_line
+def extract_profession(doc, lines):
+    matches = matcher(doc)
+    if matches:
+        for match_id, start, end in matches:
+            return doc[start:end].text
+
+    for line in lines:
+        for prof in profession_list:
+            if prof.lower() in line.lower():
+                return line.strip()
     return None
 
-def read_nadra_config(filename="config.ini", section="nadra"):
-    parser = configparser.ConfigParser()
-    parser.read(filename)
-    if parser.has_section(section):
-        return {param[0]: param[1] for param in parser.items(section)}
-    else:
-        raise Exception(f"Section {section} not found in {filename}")
+def extract_name(lines):
+    for line in lines:
+        name = HumanName(line.strip())
+        if name.first and name.last:
+            return str(name)
+    return None
 
-def extract_cnic_data(text):
-    print("[DEBUG] OCR Raw Output:")
-    print(text)
+def extract_email(text):
+    cleaned_text = text.replace(" ", "") \
+                       .replace("(@)", "@").replace("[at]", "@").replace("{at}", "@") \
+                       .replace("(dot)", ".").replace("[dot]", ".").replace("{dot}", ".")
 
+    match = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', cleaned_text)
+    if match:
+        return match.group()
+
+    # Fallback line-based
+    for line in text.split("\n"):
+        if "@" in line:
+            line = line.strip().replace(" ", "").replace("(at)", "@").replace("(dot)", ".")
+            match = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', line)
+            if match:
+                return match.group()
+
+    return None
+
+def extract_structured_data(text):
     data = {
-        "name": "-",
-        "father_name": "-",
-        "cnic_number": "-",
-        "dob": "-",
-        "issue_date": "-",
-        "expiry_date": "-",
-        "gender": "-",
+        "name": None,
+        "email": None,
+        "phone": None,
+        "address": None,
+        "profession": None
     }
 
-    lines = [line.strip() for line in text.split("\n") if line.strip()]
-    lines_lower = [line.lower() for line in lines]
+    lines = text.split("\n")
+    doc = nlp(text)
 
-    identity_idx = next((i for i, line in enumerate(lines_lower) if "identity number" in line), None)
-    cnic_found = False
+    # Name
+    data["name"] = extract_name(lines)
 
-    if identity_idx is not None and identity_idx + 1 < len(lines):
-        line_after_identity = lines[identity_idx + 1].replace(" ", "").replace(".", "-")
-        possible_cnic = extract_cnic(line_after_identity)
-        if possible_cnic and possible_cnic != "-":
-            data["cnic_number"] = possible_cnic
-            cnic_found = True
+    # Email
+    data["email"] = extract_email(text)
 
-    if not cnic_found:
-        cleaned_text = text.replace(" ", "").replace(".", "-")
-        fallback_cnic = extract_cnic(cleaned_text)
-        if fallback_cnic and fallback_cnic != "-":
-            data["cnic_number"] = fallback_cnic
-        else:
-            data["cnic_number"] = "-"
+    # Phone
+    phone_match = re.search(r'(\+?\d{1,3}[\s\-]?)?(\(?\d{2,4}\)?[\s\-]?)?[\d\s\-]{7,}', text)
+    if phone_match:
+        data["phone"] = phone_match.group().strip()
 
-    text = text.replace(",", ".")
-    date_matches = re.findall(r'\d{2}\.\d{2}\.\d{4}', text)
-    if date_matches:
-        data["dob"] = date_matches[0] if len(date_matches) > 0 else "-"
-        data["issue_date"] = date_matches[1] if len(date_matches) > 1 else "-"
-        data["expiry_date"] = date_matches[2] if len(date_matches) > 2 else "-"
+    # Address from named entities
+    for ent in doc.ents:
+        if ent.label_ in ["GPE", "LOC", "FAC"]:
+            data["address"] = ent.text
+            break
 
-    possible_name = fuzzy_search("name", lines)
-    possible_father = fuzzy_search("father", lines)
+    # Fallback for address
+    if not data["address"]:
+        for line in lines:
+            if any(kw in line.lower() for kw in ["street", "road", "city", "state", "block", "avenue"]):
+                data["address"] = line.strip()
+                break
 
-    if possible_name:
-        if not get_close_matches(possible_name.lower(), ["pakistan", "national identity card"], cutoff=0.8):
-            data["name"] = possible_name
+    # Profession
+    data["profession"] = extract_profession(doc, lines)
 
-    if possible_father:
-        data["father_name"] = possible_father
-
-    gender_keywords = ["gender", "gendef", "gend", "genfer", "gander"]
-    gender_idx = next((i for i, line in enumerate(lines_lower) if any(key in line for key in gender_keywords)), None)
-
-    if gender_idx is not None and gender_idx + 1 < len(lines):
-        gender_line = lines[gender_idx + 1].strip().upper()
-        if gender_line in ["M", "MALE"]:
-            data["gender"] = "Male"
-        elif gender_line in ["F", "FEMALE"]:
-            data["gender"] = "Female"
-        else:
-            data["gender"] = "-"
-    else:
-        data["gender"] = "-"
     return data
 
-# ==================== Routes ====================
+def save_to_excel(data, filename="data.xlsx"):
+    try:
+        if not os.path.exists(filename):
+            wb = Workbook()
+            ws = wb.active
+            ws.append(["Name", "Email", "Phone", "Address", "Profession"])
+        else:
+            wb = load_workbook(filename)
+            ws = wb.active
+
+        ws.append([
+            data.get("name", ""),
+            data.get("email", ""),
+            data.get("phone", ""),
+            data.get("address", ""),
+            data.get("profession", "")
+        ])
+        wb.save(filename)
+
+    except PermissionError:
+        print(f"[ERROR] Permission denied while saving to {filename}. Close the file if it's open.")
+    except Exception as e:
+        print(f"[ERROR] Failed to save to {filename}: {str(e)}")
+
+# ==================== Flask Routes ====================
 
 @app.route('/')
 def home():
@@ -188,111 +177,33 @@ def handle_ocr():
     if 'image' not in request.files:
         return jsonify({'error': 'No image file provided'}), 400
 
-    image_file = request.files['image']
-    try:
-        img = Image.open(image_file.stream).convert("RGB")
-        preprocessed = preprocess_image(img)
+    image_files = request.files.getlist('images')
+    results = []
 
-        results = reader.readtext(np.array(preprocessed), detail=1)
-        clean_lines = [res[1].strip() for res in results if res[2] >= 0.40 and is_english_text(res[1])]
-
-        extracted_text = "\n".join(clean_lines)
-        extracted_data = extract_cnic_data(extracted_text)
-
-        # Try NADRA verification using extracted data
+    for image_file in image_files:
         try:
-            verification_result = verify_with_nadra(
-                extracted_data["cnic_number"],
-                extracted_data["name"],
-                extracted_data["dob"]
-            )
+            image = Image.open(image_file.stream).convert('RGB')
+            preprocessed = preprocess_image(image)
+            results_ocr = reader.readtext(preprocessed)
 
-        except NADRAAccessError as e:
-            return jsonify({
-                "error": "NADRA verification failed",
-                "reason": str(e),
-                "data": extracted_data,
-                "raw_text": extracted_text.strip()
-            }), 503  # Service Unavailable
+            text = '\n'.join([res[1] for res in results_ocr if res[2] > 0.5])
+            structured_data = extract_structured_data(text)
+            save_to_excel(structured_data)
 
-        # Save only if NADRA verification is successful
-        save_to_postgres(extracted_data)
+            results.append({
+                'filename': image_file.filename,
+                'raw_text': text.strip(),
+                'data': structured_data
+            })
 
-        return jsonify({
-            "raw_text": extracted_text.strip(),
-            "data": extracted_data,
-            "nadra_verification": verification_result
-        })
+        except Exception as e:
+            results.append({
+                'filename': image_file.filename,
+                'error': str(e)
+            })
 
-    except Exception as e:
-        return jsonify({'error': f'Failed to process image: {str(e)}'}), 500
+    return jsonify(results)
 
-
-@app.route('/test')
-def test_static_cnic():
-    try:
-        results = reader.readtext('cnic.png', detail=0)
-        clean_lines = [line.strip() for line in results if is_english_text(line) and line.strip()]
-        text = "\n".join(clean_lines)
-        print("\n".join(clean_lines))
-
-        extracted_data = extract_cnic_data(text)
-        return jsonify({
-            "raw_text": text,
-            "data": extracted_data
-        })
-    except Exception as e:
-        return jsonify({'error': f'Failed to process static image: {str(e)}'}), 500
-
-@app.route('/face_verify', methods=['POST'])
-def face_verify():
-    # Check for CNIC image and 5 face images
-    if 'cnic_image' not in request.files:
-        return jsonify({'verified': False, 'reason': 'CNIC image missing'}), 400
-    cnic_image = request.files['cnic_image']
-    face_images = []
-    for i in range(5):
-        key = f'face_image_{i}'
-        if key not in request.files:
-            return jsonify({'verified': False, 'reason': f'Face image {i+1} missing'}), 400
-        face_images.append(request.files[key])
-
-    # Save images temporarily
-    temp_dir = "temp_verification"
-    os.makedirs(temp_dir, exist_ok=True)
-    cnic_path = os.path.join(temp_dir, "cnic.jpg")
-    cnic_image.save(cnic_path)
-    face_paths = []
-    for idx, img in enumerate(face_images):
-        path = os.path.join(temp_dir, f"face_{idx}.jpg")
-        img.save(path)
-        face_paths.append(path)
-
-    # Simulate official DB face as CNIC face for this demo
-    # In production, fetch official DB face and compare to CNIC face first
-    # Here, we just use CNIC face as both
-    official_db_face_path = cnic_path
-
-    # Step 1: Official DB face vs CNIC face
-    official_verified, official_msg = verify_person(official_db_face_path, [cnic_path], threshold=0.6)
-    if not official_verified:
-        # Clean up
-        for p in [cnic_path] + face_paths:
-            os.remove(p)
-        return jsonify({'verified': False, 'reason': 'Official DB face does not match CNIC face.'})
-
-    # Step 2: CNIC face vs 5 user images
-    user_verified, user_msg = verify_person(cnic_path, face_paths, threshold=0.6)
-    # Clean up
-    for p in [cnic_path] + face_paths:
-        os.remove(p)
-    if user_verified:
-        # Generate a voting token
-        token = secrets.token_hex(8)
-        return jsonify({'verified': True, 'token': token, 'msg': user_msg})
-    else:
-        return jsonify({'verified': False, 'reason': user_msg})
-
-# ==================== Run ====================
+# ==================== Run Server ====================
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(debug=True)
