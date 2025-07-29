@@ -8,3 +8,5 @@ spacy
 pillow
 opencv-python-headless
 openpyxl
+face_recognition
+dlib

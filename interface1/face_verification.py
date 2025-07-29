@@ -1,5 +1,4 @@
 import face_recognition
-from PIL import Image
 import numpy as np
 
 def extract_face(image_path):
@@ -50,4 +49,5 @@ def verify_person(cnic_image_path, person_image_paths, threshold=0.6):
 
 # Example usage:
 # verified, msg = verify_person("cnic.jpg", ["img1.jpg", "img2.jpg", "img3.jpg", "img4.jpg", "img5.jpg"])
+# print(verified, msg)
 # print(verified, msg)
