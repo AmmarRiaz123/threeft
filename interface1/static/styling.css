@@ -149,17 +149,6 @@ form {
   box-shadow: 0 0 20px rgba(50, 130, 184, 0.6);
 }
 
-/* New: Download Excel Button */
-.download-btn {
-  background: linear-gradient(45deg, #43cea2, #185a9d);
-  color: #fff;
-}
-
-.download-btn:hover {
-  background: linear-gradient(45deg, #185a9d, #43cea2);
-  box-shadow: 0 0 20px rgba(24, 90, 157, 0.6);
-}
-
 /* Hide element */
 .hidden {
   display: none;
@@ -281,6 +270,7 @@ input[type="file"] {
 
 @keyframes pop {
   0% { transform: scale(0.5); opacity: 0; }
+  80% { transform: scale(1.2); opacity: 1; }
   100% { transform: scale(1); opacity: 1; }
 }
 
@@ -338,4 +328,91 @@ input[type="file"] {
   width: 100%;
   max-width: 400px;
   border-radius: 10px;
+}
+
+#photoProgress {
+  margin: 10px 0;
+  color: #fff;
+  font-weight: 500;
+  font-size: 18px;
+  letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  min-height: 40px;
+  flex-direction: column;
+}
+
+.photo-progress-bar-outer {
+  width: 180px;
+  height: 18px;
+  background: rgba(255,255,255,0.10);
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+  margin: 8px 0 0 0;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+}
+
+.photo-progress-bar-inner {
+  height: 100%;
+  background: linear-gradient(90deg, #ff416c 0%, #ffb347 100%);
+  border-radius: 12px;
+  transition: width 0.5s cubic-bezier(.4,2,.6,1);
+  width: 0;
+  box-shadow: 0 0 16px #ff416c55;
+  position: relative;
+}
+
+.photo-progress-bar-label {
+  font-size: 16px;
+  color: #ffd369;
+  font-weight: 600;
+  letter-spacing: 2px;
+  margin-bottom: 2px;
+  text-shadow: 0 2px 8px #0002;
+}
+  position: relative;
+}
+
+.photo-progress-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ff416c 60%, #ffb347 100%);
+  display: inline-block;
+  margin-left: 8px;
+  margin-right: 2px;
+  animation: pop 0.3s;
+  border: 3px solid #fff;
+  box-shadow: 0 0 12px #ff416c88, 0 0 0 4px #ffb34733;
+  position: relative;
+}
+
+.photo-progress-dot::after {
+  content: '';
+  display: block;
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  border-radius: 50%;
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  opacity: 0.7;
+  box-shadow: 0 0 8px #fff8;
+}
+
+.photo-progress-bar-inner::after {
+  content: '';
+  display: block;
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 18px;
+  height: 100%;
+  background: radial-gradient(circle at 60% 50%, #fff8 60%, transparent 100%);
+  opacity: 0.7;
+  pointer-events: none;
 }

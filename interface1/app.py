@@ -10,6 +10,8 @@ from difflib import get_close_matches
 import string
 import psycopg2
 import configparser
+import secrets
+from face_verification import verify_person
 
 app = Flask(__name__)
 
@@ -197,32 +199,37 @@ def handle_ocr():
         extracted_text = "\n".join(clean_lines)
         extracted_data = extract_cnic_data(extracted_text)
 
-        # Try NADRA verification using extracted data
+        # Debug: Print extracted data after OCR
+        print("[DEBUG] Extracted Data after OCR:")
+        print(extracted_data)
+
+        nadra_verification = False
+        nadra_error = None
         try:
-            verification_result = verify_with_nadra(
+            nadra_verification = verify_with_nadra(
                 extracted_data["cnic_number"],
                 extracted_data["name"],
                 extracted_data["dob"]
             )
-
+            # Save only if NADRA verification is successful
+            save_to_postgres(extracted_data)
         except NADRAAccessError as e:
-            return jsonify({
-                "error": "NADRA verification failed",
-                "reason": str(e),
-                "data": extracted_data,
-                "raw_text": extracted_text.strip()
-            }), 503  # Service Unavailable
+            nadra_error = str(e)
+        except Exception as e:
+            nadra_error = f"Unexpected NADRA error: {e}"
 
-        # Save only if NADRA verification is successful
-        save_to_postgres(extracted_data)
-
-        return jsonify({
+        # Always return extracted data, raw_text, and nadra_verification status
+        response = {
             "raw_text": extracted_text.strip(),
             "data": extracted_data,
-            "nadra_verification": verification_result
-        })
+            "nadra_verification": nadra_verification
+        }
+        if nadra_error:
+            response["nadra_error"] = nadra_error
+        return jsonify(response)
 
     except Exception as e:
+        print(f"[ERROR] Exception in /ocr: {e}")
         return jsonify({'error': f'Failed to process image: {str(e)}'}), 500
 
 
@@ -235,6 +242,11 @@ def test_static_cnic():
         print("\n".join(clean_lines))
 
         extracted_data = extract_cnic_data(text)
+
+        # Debug: Print extracted data after OCR
+        print("[DEBUG] Extracted Data after OCR:")
+        print(extracted_data)
+
         return jsonify({
             "raw_text": text,
             "data": extracted_data
@@ -242,6 +254,52 @@ def test_static_cnic():
     except Exception as e:
         return jsonify({'error': f'Failed to process static image: {str(e)}'}), 500
 
+@app.route('/face_verification')
+def face_verification_page():
+    return render_template("face_verification.html")
+
+@app.route('/face_verify', methods=['POST'])
+def face_verify():
+    if 'cnic_image' not in request.files:
+        return jsonify({'verified': False, 'reason': 'CNIC image missing'}), 400
+    cnic_image = request.files['cnic_image']
+    face_images = []
+    for i in range(5):
+        key = f'face_image_{i}'
+        if key not in request.files:
+            return jsonify({'verified': False, 'reason': f'Face image {i+1} missing'}), 400
+        face_images.append(request.files[key])
+
+    temp_dir = "temp_verification"
+    os.makedirs(temp_dir, exist_ok=True)
+    cnic_path = os.path.join(temp_dir, "cnic.jpg")
+    cnic_image.save(cnic_path)
+    face_paths = []
+    for idx, img in enumerate(face_images):
+        path = os.path.join(temp_dir, f"face_{idx}.jpg")
+        img.save(path)
+        face_paths.append(path)
+
+    # Simulate official DB face as CNIC face for this demo
+    official_db_face_path = cnic_path
+
+    # Step 1: Official DB face vs CNIC face
+    official_verified, official_msg = verify_person(official_db_face_path, [cnic_path], threshold=0.6)
+    if not official_verified:
+        for p in [cnic_path] + face_paths:
+            os.remove(p)
+        return jsonify({'verified': False, 'reason': 'Official DB face does not match CNIC face.'})
+
+    # Step 2: CNIC face vs 5 user images
+    user_verified, user_msg = verify_person(cnic_path, face_paths, threshold=0.6)
+    for p in [cnic_path] + face_paths:
+        os.remove(p)
+    if user_verified:
+        token = secrets.token_hex(8)
+        return jsonify({'verified': True, 'token': token, 'msg': user_msg})
+    else:
+        return jsonify({'verified': False, 'reason': user_msg})
+
 # ==================== Run ====================
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)                is this all good
+    app.run(host='0.0.0.0', port=5000, debug=True)
