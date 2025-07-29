@@ -17,6 +17,25 @@ document.addEventListener("DOMContentLoaded", function () {
   let faceImagesFiles = [];
   let webcamStream = null;
 
+  // Helper: add a file to the faceImagesFiles array and update UI (for uploads)
+  function addFaceImageFileFromUpload(file) {
+    if (faceImagesFiles.length < 5 && file) {
+      faceImagesFiles.push(file);
+      previewFaceImages(faceImagesFiles);
+      // Debug: print array after adding
+      console.log("[DEBUG] addFaceImageFileFromUpload - faceImagesFiles:", faceImagesFiles, faceImagesFiles.map(f => f.name));
+    }
+  }
+
+  // Helper: add a file from camera/capture to the array and update UI
+  function addFaceImageFileFromCamera(file) {
+    if (faceImagesFiles.length < 5 && file) {
+      faceImagesFiles.push(file);
+      previewFaceImages(faceImagesFiles);
+      console.log("[DEBUG] addFaceImageFileFromCamera - faceImagesFiles:", faceImagesFiles, faceImagesFiles.map(f => f.name));
+    }
+  }
+
   // Helper: Enable/disable verify button based on image count
   function updateVerifyButtonState() {
     // Progress bar loader
@@ -92,8 +111,7 @@ document.addEventListener("DOMContentLoaded", function () {
     canvas.toBlob(function (blob) {
       if (faceImagesFiles.length < 5) {
         const file = new File([blob], `webcam_${Date.now()}.jpg`, { type: "image/jpeg" });
-        faceImagesFiles.push(file);
-        previewFaceImages(faceImagesFiles);
+        addFaceImageFileFromCamera(file);
         if (faceImagesFiles.length >= 5) {
           closeWebcam();
         }
@@ -115,38 +133,25 @@ document.addEventListener("DOMContentLoaded", function () {
   // Upload from Gallery button triggers gallery input
   uploadGalleryBtn.addEventListener("click", function (e) {
     e.preventDefault();
+    console.log("**** Upload from Gallery button clicked ****");
     galleryInput.value = ""; // reset
     galleryInput.click();
   });
 
-  // Allow uploading one image at a time, up to 5 total, and add to the same array as capture
+  // Use the new helper for gallery uploads (add one at a time)
   galleryInput.addEventListener("change", function () {
     if (!this.files.length) return;
     if (faceImagesFiles.length >= 5) return;
-    // Only add the first file (ignore multiple selection)
-    const file = this.files[0];
-    if (file) {
-      faceImagesFiles.push(file);
-      // Debug: print array after upload
-      console.log("[DEBUG] galleryInput change - faceImagesFiles:", faceImagesFiles, faceImagesFiles.map(f => f.name));
-      previewFaceImages(faceImagesFiles);
-    }
-    // Reset input so the same file can be uploaded again if needed
+    addFaceImageFileFromUpload(this.files[0]);
     this.value = "";
   });
 
-  // Allow camera input (mobile) to add one image at a time, up to 5 total
+  // Use the new helper for camera input (mobile)
   cameraInput.addEventListener("change", function () {
     if (!this.files.length) return;
     if (faceImagesFiles.length >= 5) return;
-    const file = this.files[0];
-    if (file) {
-      faceImagesFiles.push(file);
-      // Debug: print array after camera input
-      console.log("[DEBUG] cameraInput change - faceImagesFiles:", faceImagesFiles, faceImagesFiles.map(f => f.name));
-      previewFaceImages(faceImagesFiles);
-    }
-    cameraInput.value = "";
+    addFaceImageFileFromCamera(this.files[0]);
+    this.value = "";
   });
 
   // Handle face verification
