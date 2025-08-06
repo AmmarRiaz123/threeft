@@ -27,20 +27,39 @@ if (cnicForm) {
     const formData = new FormData();
     formData.append("image", file); // only one image now
 
-    const reader = new FileReader();
-    reader.onload = function (e) {
-      const img = document.createElement("img");
-      img.src = e.target.result;
-      preview.appendChild(img);
+    // Preview logic for image or PDF
+    if (file.type.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const img = document.createElement("img");
+        img.src = e.target.result;
+        preview.appendChild(img);
 
-      // Store CNIC image as base64 for face verification page
-      try {
-        localStorage.setItem("cnicImageBase64", e.target.result);
-      } catch (err) {
-        // Ignore storage errors
-      }
-    };
-    reader.readAsDataURL(file);
+        // Store CNIC image as base64 for face verification page
+        try {
+          localStorage.setItem("cnicImageBase64", e.target.result);
+        } catch (err) {
+          // Ignore storage errors
+        }
+      };
+      reader.readAsDataURL(file);
+    } else if (
+      file.type === "application/pdf" ||
+      file.name.toLowerCase().endsWith(".pdf")
+    ) {
+      // Show PDF icon and filename
+      const pdfDiv = document.createElement("div");
+      pdfDiv.style.display = "flex";
+      pdfDiv.style.alignItems = "center";
+      pdfDiv.style.justifyContent = "center";
+      pdfDiv.style.flexDirection = "column";
+      pdfDiv.innerHTML = `
+        <span style="font-size:48px; color:#3282b8;">📄</span>
+        <span style="color:#3282b8; font-weight:600; margin-top:8px;">${file.name}</span>
+      `;
+      preview.appendChild(pdfDiv);
+      // Do not store PDF in localStorage for face verification
+    }
 
     fetch("/ocr", {
       method: "POST",
@@ -157,4 +176,6 @@ if (cnicForm) {
       webcam.srcObject = null;
     }
   }
+
+  // No changes needed here for PDF support, as the backend handles PDF files.
 }

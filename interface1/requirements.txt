@@ -1,12 +1,15 @@
---extra-index-url https://download.pytorch.org/whl/cpu
-
 numpy==1.24.4
 Flask
 gunicorn
 easyocr
-spacy
+psycopg2-binary
+pdf2image>=1.16.0
+PyPDF2>=2.0.0
 pillow
 opencv-python-headless
-openpyxl
 face_recognition
+fuzzywuzzy
+python-Levenshtein
 dlib
+configparser
+poppler-utils
