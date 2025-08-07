@@ -1,0 +1,22 @@
+-- Create table for registered voters
+CREATE TABLE registered_voters (
+    id SERIAL PRIMARY KEY,
+
+    -- Unique value scanned from CNIC QR code
+    qr_id VARCHAR(100) UNIQUE NOT NULL,
+
+    -- Voter personal information
+    full_name VARCHAR(100) NOT NULL,
+    father_name VARCHAR(100),
+    date_of_birth DATE,
+    gender VARCHAR(10),
+    address TEXT,
+
+    -- Voting status tracking
+    has_voted BOOLEAN DEFAULT FALSE,
+    verified_at TIMESTAMP,
+    voted_at TIMESTAMP,
+
+    -- Record creation time
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
