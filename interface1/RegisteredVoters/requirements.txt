@@ -1,0 +1,11 @@
+flask
+flask-cors
+pyzbar
+pillow
+psycopg2
+pytest
+qrcode
+
+# Run tests with:
+# pytest -v
+# The -v flag shows test names and messages for better output.
