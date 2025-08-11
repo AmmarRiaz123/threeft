@@ -6,11 +6,6 @@ import configparser
 
 scan_qr_bp = Blueprint('scan_qr', __name__)
 
-# Load config (for consistency, not used here)
-config = configparser.ConfigParser()
-config.read('config.ini')
-DATABASE_URL = config['postgresql']['DATABASE_URL']
-
 @scan_qr_bp.route('/scan-qr', methods=['POST'])
 def scan_qr():
     if 'image' not in request.files:

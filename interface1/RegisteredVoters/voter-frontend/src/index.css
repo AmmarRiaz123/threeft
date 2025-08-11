@@ -12,4 +12,13 @@ code {
     monospace;
 }
 
-/* ...existing code... */
+.app-container {
+  min-height: 100vh;
+  padding: 1rem;
+  user-select: none; /* Prevent unwanted text selection */
+}
+
+/* Make inputs and buttons selectable */
+input, button {
+  user-select: text;
+}

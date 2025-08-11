@@ -18,5 +18,8 @@ CREATE TABLE registered_voters (
     voted_at TIMESTAMP,
 
     -- Record creation time
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at_embedding TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    live_embedding BYTEA,
+    live_embedding_shape VARCHAR(32),
+    live_embedding_dtype VARCHAR(16)
 );
