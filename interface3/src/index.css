@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Voting System - Dark Navy Theme */
+    --background: 220 65% 7%;
+    --foreground: 210 100% 95%;
+
+    --card: 220 60% 12%;
+    --card-foreground: 210 100% 95%;
+
+    --popover: 220 60% 12%;
+    --popover-foreground: 210 100% 95%;
+
+    --primary: 210 100% 50%;
+    --primary-foreground: 220 65% 7%;
+
+    --secondary: 220 50% 20%;
+    --secondary-foreground: 210 100% 95%;
+
+    --muted: 220 50% 15%;
+    --muted-foreground: 210 20% 70%;
+
+    --accent: 210 100% 40%;
+    --accent-foreground: 220 65% 7%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 220 50% 25%;
+    --input: 220 50% 20%;
+    --ring: 210 100% 50%;
+
+    --radius: 0.75rem;
+
+    /* Voting specific colors */
+    --vote-primary: 210 100% 50%;
+    --vote-primary-hover: 210 100% 45%;
+    --vote-success: 120 100% 35%;
+    --vote-warning: 45 100% 50%;
+    --vote-navy: 220 65% 7%;
+    --vote-card: 220 60% 12%;
+    --vote-border: 220 50% 25%;
+  }
+
+  .dark {
+    --background: 220 65% 7%;
+    --foreground: 210 100% 95%;
+
+    --card: 220 60% 12%;
+    --card-foreground: 210 100% 95%;
+
+    --popover: 220 60% 12%;
+    --popover-foreground: 210 100% 95%;
+
+    --primary: 210 100% 50%;
+    --primary-foreground: 220 65% 7%;
+
+    --secondary: 220 50% 20%;
+    --secondary-foreground: 210 100% 95%;
+
+    --muted: 220 50% 15%;
+    --muted-foreground: 210 20% 70%;
+
+    --accent: 210 100% 40%;
+    --accent-foreground: 220 65% 7%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 220 50% 25%;
+    --input: 220 50% 20%;
+    --ring: 210 100% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
