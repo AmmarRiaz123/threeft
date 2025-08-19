@@ -1,0 +1,30 @@
+/* Center the token and button */
+.token-center-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1b1a38;
+}
+
+.token-content {
+  text-align: center;
+  color: #fff;
+}
+
+/* ...existing code... */
+
+.token-content button {
+  background-color: #7067f1;   /* Blue */
+  color: #fff;                 /* White text */
+  border: none;
+  border-radius: 4px;
+  padding: 10px 30px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.token-content button:hover {
+  background-color: #7067f1;   /* Darker blue on hover */
+}
